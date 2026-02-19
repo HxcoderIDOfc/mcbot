@@ -1,7 +1,7 @@
 const mineflayer = require('mineflayer')
 const http = require('http')
 
-// Dummy HTTP server biar Koyeb gak restart
+// Dummy HTTP server
 http.createServer((req, res) => {
   res.writeHead(200)
   res.end("Iprime Bot Rotation Running")
@@ -9,7 +9,6 @@ http.createServer((req, res) => {
 
 const host = process.env.MC_HOST
 const port = process.env.MC_PORT || 25565
-const version = '1.21.4'
 
 const botNames = [
   'IprimeBotA',
@@ -24,9 +23,10 @@ const PREPARE_TIME = 10 * 60 * 1000
 
 let activeBot = null
 let currentIndex = 0
+let reconnecting = false
 
 function randomDelay() {
-  return (5 + Math.random()) * 60 * 1000 // 5–6 menit
+  return (5 + Math.random()) * 60 * 1000
 }
 
 function antiAFK(bot) {
@@ -53,7 +53,7 @@ function antiAFK(bot) {
       )
     }
 
-  }, 4000)
+  }, 5000)
 }
 
 function createBot(name, callback) {
@@ -62,8 +62,8 @@ function createBot(name, callback) {
   const bot = mineflayer.createBot({
     host,
     port,
-    username: name,
-    version
+    username: name
+    // version dihapus biar auto detect
   })
 
   let spawned = false
@@ -71,17 +71,27 @@ function createBot(name, callback) {
   bot.once('spawn', () => {
     console.log(`✅ ${name} connected`)
     spawned = true
+    reconnecting = false
     antiAFK(bot)
     callback(true, bot)
   })
 
-  bot.once('error', (err) => {
-    console.log(`⚠️ ${name} error:`, err.message)
-    callback(false, null)
+  bot.on('error', (err) => {
+    console.log(`⚠️ ${name} error:`, err.code || err.message)
+
+    if (!reconnecting) {
+      reconnecting = true
+      console.log('🔁 Retry dalam 30 detik...')
+      setTimeout(() => createBot(name, callback), 30000)
+    }
   })
 
-  bot.once('end', () => {
-    if (!spawned) callback(false, null)
+  bot.on('end', () => {
+    if (!spawned && !reconnecting) {
+      reconnecting = true
+      console.log('🔁 Disconnected sebelum spawn. Retry 30 detik...')
+      setTimeout(() => createBot(name, callback), 30000)
+    }
   })
 
   bot.on('kicked', (reason) => {
@@ -90,15 +100,20 @@ function createBot(name, callback) {
 }
 
 function startRotation() {
-  createBot(botNames[currentIndex], (ok, bot) => {
-    if (!ok) {
-      console.log('Bot pertama gagal login.')
-      return
-    }
+  console.log('⏳ Tunggu 20 detik sebelum connect pertama...')
+  setTimeout(() => {
 
-    activeBot = bot
-    scheduleNext()
-  })
+    createBot(botNames[currentIndex], (ok, bot) => {
+      if (!ok) {
+        console.log('Bot pertama gagal, retry otomatis...')
+        return
+      }
+
+      activeBot = bot
+      scheduleNext()
+    })
+
+  }, 20000)
 }
 
 function scheduleNext() {

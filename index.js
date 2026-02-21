@@ -18,8 +18,11 @@ const botNames = [
   'IprimeBotE'
 ]
 
-const ROTATE_TIME = 3 * 60 * 60 * 1000
-const PREPARE_TIME = 10 * 60 * 1000
+// 10 menit
+const ROTATE_TIME = 10 * 60 * 1000
+
+// 5 menit sebelum rotate
+const PREPARE_TIME = 5 * 60 * 1000
 
 let activeBot = null
 let currentIndex = 0
